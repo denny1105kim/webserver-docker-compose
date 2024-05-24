@@ -1,0 +1,146 @@
+version: '3.0'
+
+services:
+  nginx-proxy:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy
+    hostname: nginx-proxy
+    restart: unless-stopped
+    volumes:
+      - ./nginx-proxy/data:/data
+      - ./nginx-proxy/letsencrypt:/etc/letsencrypt:z
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - 80:80
+      - 443:443
+      - 50081:81
+    networks:
+      myserver:
+        ipv4_address: 172.18.1.102
+  gerrit:
+    image: gerritcodereview/gerrit:3.8.0-ubuntu22
+    user: root
+    hostname: gerrit
+    container_name: gerrit
+    restart: always
+    ports:
+      - "29418:29418"
+    volumes:
+      - ./gerrit/db:/var/gerrit/db
+      - ./gerrit/etc:/var/gerrit/etc
+      - ./gerrit/git:/var/gerrit/git
+      - ./gerrit/index:/var/gerrit/index
+      - ./gerrit/plugins:/var/gerrit/plugins
+      - /usr/lib/jvm:/usr/lib/jvm
+    environment:
+      - CANONICAL_WEB_URL=http://gerrit.swjbs.com:8101
+        #command: init
+    networks:
+      myserver:
+        ipv4_address: 172.18.1.103
+  apache:
+    image: httpd
+    user: root
+    hostname: apache
+    container_name: apache
+    volumes:
+      - ./apache2/httpd/httpd.conf:/usr/local/apache2/conf/httpd.conf
+      - ./apache2/httpd/.htpasswd:/usr/local/apache2/conf/.htpasswd
+      - ./apache2/home:/usr/local/apache2/htdocs/
+    restart: always
+    ports:
+      - "8100:80"
+    networks:
+      myserver:
+        ipv4_address: 172.18.1.104
+  gerrit_apache:
+    image: httpd
+    user: root
+    hostname: gerrit_apache
+    container_name: gerrit_apache
+    volumes:
+      - ./gerrit_apache2/httpd/httpd.conf:/usr/local/apache2/conf/httpd.conf
+      - ./gerrit_apache2/httpd/.htpasswd:/usr/local/apache2/conf/.htpasswd
+    restart: always
+    ports:
+      - "8101:80"
+    networks:
+      myserver:
+        ipv4_address: 172.18.1.105
+  jenkins:
+    privileged: true
+    hostname : jenkins
+    container_name: jenkins
+    build:
+      context: ./jenkins
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "8080:8080"
+    expose:
+      - "8080"
+    volumes:
+      - './jenkins/jenkins_home:/var/jenkins_home'
+      - '/var/run/docker.sock:/var/run/docker.sock'
+    environment:
+      TZ: "Asia/Seoul"
+    networks:
+      myserver:
+        ipv4_address: 172.18.1.106
+  mariadb:
+    container_name: "mariadb"
+    image: mariadb:10
+    restart: always
+    ports:
+        - 3306:3306
+    volumes:
+        - "./mariadb/conf.d:/etc/mysql/conf.d"
+        - "./mariadb/data:/var/lib/mysql"
+    environment:
+        TZ: "Asia/Seoul"
+        MARIADB_DATABASE: "administrator"
+        MARIADB_USER: "pon98142"
+        MARIADB_PASSWORD: 72008364
+        MARIADB_ROOT_PASSWORD: 72008364
+    restart: always
+    networks:
+      myserver:
+        ipv4_address: 172.18.1.107
+  backup-nexus:
+    image: sonatype/nexus3:3.38.1
+    user: root
+    restart: always
+    ports:
+      - "8102:8102"
+      - "8103:8103"
+    volumes:
+      - /home/jaehyeon/work/Dockervolume/nexus-data:/nexus-data
+    networks:
+      myserver:
+        ipv4_address: 172.18.1.108
+
+  lava-server:
+    image: lava/lava-server:2023.10
+    container_name: lava
+    build:
+      context: ./lava-server
+      dockerfile: Dockerfile
+    hostname: lava
+    user: root
+    volumes:
+      - ./lava-server/lava-server.conf:/etc/apache2/sites-available/lava-server.conf
+      - ./lava-server/setting.conf:/etc/lava-server/setting.conf
+    ports:
+      - "8105:80"
+    networks:
+      myserver:
+        ipv4_address: 172.18.1.109
+
+networks:
+  myserver:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.18.0.0/16
+
